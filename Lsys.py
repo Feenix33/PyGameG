@@ -1,6 +1,100 @@
+"""
+Lsys.py
+Generate an L-system and draw it with turtle or pygame
+
+"""
+#for pygame version
+import os
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
+import sys
+import math
+import pygame as pg
+from pygame.locals import ( K_UP, K_DOWN, K_LEFT, K_RIGHT, K_ESCAPE, KEYDOWN, QUIT,)
+
+#for turtle version
 import turtle
 
+
 #SYSTEM_RULES = {}  # generator system rules for l-system
+
+def pg_test(lsys):
+    CAPTION = "L-System"
+    SCREEN_SIZE = (1200, 750)
+    MAX_FPS = 30
+
+    os.environ['SDL_VIDEO_CENTERED'] = '1'
+    pg.init()
+    pg.display.set_caption(CAPTION)
+    pg.display.set_mode(SCREEN_SIZE)
+
+    screen = pg.display.set_mode(SCREEN_SIZE)
+    clock = pg.time.Clock()
+    running = True
+
+    screen.fill(pg.Color("white"))
+
+    # draw the L-System
+    my_turtle = pgTurtle(screen, SCREEN_SIZE[0]//4, SCREEN_SIZE[1]*2//3)
+    my_turtle.width(3)
+    draw_l_system(my_turtle, lsys.render_string(),lsys.segment_length, math.radians(lsys.angle))  # draw model 
+
+
+    pg.display.update()
+    pg.display.flip()
+
+    while running:
+        for event in pg.event.get():
+
+            if event.type == KEYDOWN:
+                if event.key == K_ESCAPE:
+                    running = False
+
+            elif event.type == QUIT:
+                running = False
+        clock.tick_busy_loop(MAX_FPS)
+    pg.quit()
+    sys.exit()
+
+class pgTurtle:
+    def __init__(self, surf, x, y):
+        self.surf = surf
+        self.pen = True #true if pen is down
+        self.penclr = pg.Color("black")
+        self._heading = 0
+        self.x = x
+        self.y = y
+        self._width = 1
+
+    def forward(self, segment):
+        start = [int(self.x), int(self.y)]
+        self.x += segment * math.cos(self._heading)
+        self.y += segment * math.sin(self._heading)
+        end = [int(self.x), int(self.y)]
+        if self.pen:
+            pg.draw.line(self.surf, self.penclr, start, end, self._width)
+    def pu(self):
+        self.pen = False # false = pen up
+    def pd(self):
+        self.pen = True # true = pen down
+    def right(self, angle):
+        self._heading += angle
+    def left(self, angle):
+        self._heading -= angle
+    def position(self):
+        return (self.x, self.y)
+    def goto(self, position):
+        self.x = position[0]
+        self.y = position[1]
+    def heading(self):
+        return self._heading
+    def setheading(self, angle):
+        self._heading = angle
+    def width(self, w):
+        self._width = w
+
+
+#def pg_draw(turtle, lstring, segment, angle):
+#    stack = []
 
 def draw_l_system(turtle, SYSTEM_RULES, seg_length, angle):
     stack = []
@@ -39,6 +133,7 @@ class LSystem:
         self.angle = angle
         self.alpha_zero = alpha_zero
         self.segment_length = segment_length
+        self.derived = []
     def dump(self):
         print ("Axiom = ", self.axiom)
         print ("Rules")
@@ -50,19 +145,23 @@ class LSystem:
         return full[-1]
 
     def derivation_full(self, steps):
-        derived = [self.axiom]  # seed
+        self.derived = [self.axiom]  # seed
         for _ in range(steps):
-            next_seq = derived[-1]
+            next_seq = self.derived[-1]
             next_axiom = [self.rule(char) for char in next_seq]
-            derived.append(''.join(next_axiom))
-        return derived
+            self.derived.append(''.join(next_axiom))
+        return self.derived
 
     def rule(self, sequence):
         if sequence in self.rules:
             return self.rules[sequence]
         return sequence
+    def render_string(self):
+        #print (self.derived[-1])
+        return self.derived[-1]
 
-def lsys_test():
+
+def generate_lsys():
     dragon = LSystem(
             axiom='L',
             rules={ 'L':'L+R+', 'R':'-L-R'},
@@ -97,23 +196,26 @@ def lsys_test():
             alpha_zero=90,
             )
 
-    system = plant
+    system = koch_curve
     iterations = 4
     #alpha_zero = 0
     render_string = system.derivation(iterations)
+    return system
 
+def lsys_test(lsys):
     # Set turtle parameters and draw L-System
-    r_turtle = set_turtle(system.alpha_zero)  # create turtle object
+    r_turtle = set_turtle(lsys.alpha_zero)  # create turtle object
     turtle_screen = turtle.Screen()  # create graphics window
     turtle_screen.screensize(1500, 1500)
-    draw_l_system(r_turtle, render_string, system.segment_length, system.angle)  # draw model
+    draw_l_system(r_turtle, lsys.render_string(), lsys.segment_length, lsys.angle)  # draw model
     turtle_screen.exitonclick()
 
 
 def main():
+    lsys = generate_lsys()
     #raw_test()
-    lsys_test()
-
+    #lsys_test(lsys)
+    pg_test(lsys)
 
 
 
