@@ -11,9 +11,9 @@ Scale Ships.py
     moving star field in back
     enemy move vertically too
     both bullets w/l/r triggers
+    sound
 
 To Do:
-    sound
     combine torp and bullet management
     health bar on ship
 """
