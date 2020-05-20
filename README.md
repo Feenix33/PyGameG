@@ -13,3 +13,4 @@ lsys.py | Draw and L-System with the Python turtle or PyGame
 clickBugs.py | Move and rotate some simple sprites
 flying.py | Horizontal flying scroller
 invade.py | Start of a space invaders game (groups, collisions, overloading, entities)
+scale_ships.py | scaled x2; sounds; multiple collisions
