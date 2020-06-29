@@ -3,6 +3,18 @@ meeple.py
 First attempt at an ECS system 
 A meeple moves from house to office and back again
 01 - first ECS attempt and explore
+02 - refine ECS; pull out meeple and building characteristics
+
+TODO:
+x   change entity rect to pos
+x   move image creation for building into building
+    add a door entity
+    add render order building->door->meeple
+    add second building
+    one building home, other work
+    add wait in one then move to other
+    meeple inside or outside movement
+    building pop
 """
 
 import os
@@ -17,42 +29,71 @@ GAME_SIZE   = (400, 250)
 SCREEN_SIZE = (GAME_SIZE[0]*2, GAME_SIZE[1]*2) #screen is double
 MAX_FPS = 30
 
-class RenderOrder(Enum):
-    NONE = 0
-    BUILDING = 1
-    MEEPLE = 2
 
 from pygame.locals import ( RLEACCEL, K_UP, K_DOWN, K_LEFT, K_RIGHT, K_ESCAPE, KEYDOWN, \
         QUIT, K_HOME, K_SPACE, K_PAGEUP, K_PAGEDOWN, )
 
+class MeepleState:
+    WAIT = 0
+    GO = 1
+
 class Entity:
     _Count = 0
-    def __init__(self, entities, name, pos, img=None, render=RenderOrder.NONE):
-    #def __init__(self, entities, name, rect, img=None):
+    def __init__(self, entities, name, pos, ground=-1, meeple=None, ai=None, bldg=None):
         self.ndx = Entity._Count
         Entity._Count += 1
         self.name = name
-        self.img = img
         self.rect = pg.Rect(pos.x, pos.y, 0, 0)
-        self.render_order = render
+        self.surf = None
 
-        if self.img:
-            self.img.owner = self
-            self.rect = self.img.surf.get_rect()
-            self.rect = self.rect.move(pos.x, pos.y)
+        self.meeple = meeple
+        self.ai = ai
+        self.bldg = bldg
+
+        if self.meeple:
+            self.meeple.owner = self
+            self.surf = self.meeple.create_surf()
+        if self.ai: self.ai.owner = self
+
+        if self.bldg:
+            self.bldg.owner = self
+            self.surf = self.bldg.create_surf()
+
+        if self.surf:
+            self.rect = self.surf.get_rect()
+            if ground < 0:
+                newy = self.rect.y
+            else:
+                newy = ground - self.rect.h
+            self.rect = self.rect.move(pos.x, newy)
+            #print (self.name, self.rect)
 
         entities.append(self)
 
     def __str__(self):
-        #return "    {:5d} {:10s}: p({:3d},{:3d})".format (self.ndx, self.name, self.rect.x, self.rect.y)
         return "    {:5d} {:10s}: {}".format (self.ndx, self.name, self.pos)
 
     def draw(self, screen):
-        screen.blit(self.img.surf, self.rect)
+        screen.blit(self.surf, self.rect)
+
+    @property
+    def x(self):
+        return self.rect.x
+    @property
+    def y(self):
+        return self.rect.y
 
     @property
     def pos(self):
         return Pos(self.rect.x, self.rect.y)
+    @pos.setter
+    def pos(self, x,y):
+        self.rect = self.rect.move(x, y)
+
+    def delta_move(self, dx, dy):
+        self.rect.x += dx
+        self.rect.y += dy
+
 
 class Pos:
     def __init__(self, x, y):
@@ -61,27 +102,57 @@ class Pos:
     def __str__(self):
         return "({},{})".format(self.x, self.y)
 
-class MeepleImage:
+class Meeple:
     def __init__(self, clr):
-        self.surf = pg.Surface((10, 20))
-        self.surf.fill (clr)
-        pg.draw.rect(self.surf, pg.Color("yellow"), pg.Rect((0,0),(10,5)))
+        self.tgtx = 200
+        self.clr = clr
+    def create_surf(self):
+        surf = pg.Surface((10, 20))
+        surf.fill (self.clr)
+        pg.draw.rect(surf, pg.Color("yellow"), pg.Rect((0,0),(10,5)))
+        return surf
 
-class GenericImage40x40:
-    def __init__(self, clr):
-        self.surf = pg.Surface((40, 40))
-        self.surf.fill (clr)
+class MeepleAI:
+    def __init__(self):
+        self.state = MeepleState.WAIT
+        self.vel = Pos(1,0)
+    def move(self):
+        actor = self.owner
+        #if actor.pos.x < actor.meeple.tgtx:
+        if actor.x < actor.meeple.tgtx:
+            actor.delta_move(1, 0)
+
+
+class Door:
+    def __init__(self, clr=pg.Color("black")):
+        self.clr = clr
+    def create_surf(self):
+        surf = pg.Surface((10,25))
+        surf.set_colorkey(pg.Color("magenta"), RLEACCEL)
+        pg.draw.rect(surf, self.clr, pr.Rect((0,0),(10,25)))
+        return surf
+
+class Building:
+    def __init__(self, clr, w5=8):
+        self.clr = clr
+        self.population = []
+        self.doorx = 0
+        self.width = w5*5
+    def create_surf(self):
+        surf = pg.Surface((self.width, 40))
+        surf.fill (self.clr)
+        return surf
 
 def graphics_system(screen, entities):
     screen.fill(pg.Color("skyblue"))
     pg.draw.rect(screen, pg.Color("gray"), pg.Rect((0, 150), (GAME_SIZE[0],100)))
     for entity in entities:
         entity.draw(screen)
-    # demo of alpha, can't draw w/alpha channel
-    surf =  pg.Surface((40,40))
-    surf.set_alpha(128)
-    surf.fill(pg.Color(0,0,255,128))
-    screen.blit(surf, pg.Rect((130, 110), (40,40)))
+
+def action_system(entities):
+    for entity in entities:
+        if entity.ai:
+            entity.ai.move()
 
 def main():
     os.environ['SDL_VIDEO_CENTERED'] = '1'
@@ -99,19 +170,17 @@ def main():
     clock = pg.time.Clock()
     running = True
     entities = []
-    #meeple = Entity(entities, "meeple", pg.Rect((100, 130),(10,20)), 
-    meeple = Entity(entities, "meeple", pos=Pos(100,140),
-            img=MeepleImage(pg.Color(255,0,0)),
-            render=RenderOrder.MEEPLE,
+    #meeple 
+    Entity(entities, "meeple", Pos(100,0), ground=150,
+            meeple=Meeple(pg.Color("red")), ai=MeepleAI(),
+            bldg=None,
             )
 
-    house = Entity(entities, "house", pos=Pos(20, 110),
-            img=GenericImage40x40(pg.Color("blue")),
-            render=RenderOrder.BUILDING,
+    #building
+    Entity(entities, "building", Pos(20, 110), ground=150,
+            bldg=Building(pg.Color("slategray"), 10),
             )
-
-    Entity(entities, "house", pos=Pos(130, 110), img=GenericImage40x40(pg.Color("blue")), render=RenderOrder.BUILDING,)
-    Entity(entities, "meeple", pos=Pos(150,130), img=MeepleImage(pg.Color("orange")), render=RenderOrder.MEEPLE,)
+    Entity(entities, "home", Pos(200, 0), ground=150, bldg=Building(pg.Color("brown"), 20),)
 
 
     while running:
@@ -121,8 +190,7 @@ def main():
             if event.type == pg.KEYUP:
                 if event.key == pg.K_ESCAPE or event.key == pg.K_q:
                     running = False
-                elif event.key == pg.K_d:
-                    #debug
+                elif event.key == pg.K_d: #debug
                     for entity in entities:
                         print (entity)
 
@@ -130,11 +198,11 @@ def main():
                 running = False
 
 
+        # physics system
+        action_system(entities)
 
         # graphics system
         graphics_system(game_screen, entities)
-        #for entity in entities:
-        #    entity.draw(game_screen)
 
         pg.transform.scale2x (game_screen, screen)
         pg.display.update()
