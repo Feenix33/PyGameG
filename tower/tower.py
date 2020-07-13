@@ -1,20 +1,64 @@
 """
-meeple.py
-First attempt at an ECS system 
-A meeple moves from house to office and back again
-01 - first ECS attempt and explore
-02 - refine ECS; pull out meeple and building characteristics
+tower.py
+Use an ECS to build a crude Tiny Tower clone
+
+01 - Base outline w/meeple a floor and an elevator
+02 - Rethought the ECS
+03 - Not working, build a generic graphic E
 
 TODO:
-x   change entity rect to pos
-x   move image creation for building into building
-    add a door entity
-    add render order building->door->meeple
-    add second building
-    one building home, other work
-    add wait in one then move to other
-    meeple inside or outside movement
-    building pop
+    x Add floor with the construct_floor method
+    x shaft
+    x add facades
+
+    x build the whole building
+    x have res and comm floor in different colors
+
+    x fix the colors dict for floors
+    x add random objects in secondary colors for floors
+    
+    x start elevator
+    x move image surf creation into the components, need a generic
+    x add elevator placement routines
+    x add zorder
+    x create ai for elevator to move up and down on timer
+    x add doors to elevator; improved drawing routine
+
+    x Rethink how to handle doors for elevator so meeple can wait in front and floor in front meeple
+
+        drawing
+    x       base
+    x       random
+            round heads / transparency
+        ai
+            moves at random times left and right
+            moves to elevator
+            calls elevator
+            gets on elevator
+    elevator 
+        ai logic
+            get a call up or down
+            stop on floor and add passenger
+            wait until full during loading
+        drawing
+            doors open close
+
+    general
+        redesign detail surface routines: static, overly, active draw
+        elevator needs active with flag
+        camera to have taller buildings
+
+    floor
+        better random looking floors
+            pass in pallet generate: wallpaper, chairs, table, shelves
+
+    building
+        add top
+
+    ai ideas for floor:
+      res light on/off if people in/out
+      comm what items are being sold
+
 """
 
 import os
@@ -24,175 +68,148 @@ import random
 import pygame as pg
 from enum import Enum
 
-CAPTION = "Meeple 01"
-GAME_SIZE   = (400, 250)
-SCREEN_SIZE = (GAME_SIZE[0]*2, GAME_SIZE[1]*2) #screen is double
-MAX_FPS = 30
+from init_tower import get_constants
+from entity import Entity
+
+from building import BuildingComp 
+from floor import FloorComp
+from elevator import ElevatorComp
+from ai import ElevatorStates, aiElevator
+from meeple import Meeple
+
+
+from render import render_system, RenderOrder
 
 
 from pygame.locals import ( RLEACCEL, K_UP, K_DOWN, K_LEFT, K_RIGHT, K_ESCAPE, KEYDOWN, \
         QUIT, K_HOME, K_SPACE, K_PAGEUP, K_PAGEDOWN, )
 
-class MeepleState:
-    WAIT = 0
-    GO = 1
-
-class Entity:
-    _Count = 0
-    def __init__(self, entities, name, pos, ground=-1, meeple=None, ai=None, bldg=None):
-        self.ndx = Entity._Count
-        Entity._Count += 1
-        self.name = name
-        self.rect = pg.Rect(pos.x, pos.y, 0, 0)
-        self.surf = None
-
-        self.meeple = meeple
-        self.ai = ai
-        self.bldg = bldg
-
-        if self.meeple:
-            self.meeple.owner = self
-            self.surf = self.meeple.create_surf()
-        if self.ai: self.ai.owner = self
-
-        if self.bldg:
-            self.bldg.owner = self
-            self.surf = self.bldg.create_surf()
-
-        if self.surf:
-            self.rect = self.surf.get_rect()
-            if ground < 0:
-                newy = self.rect.y
-            else:
-                newy = ground - self.rect.h
-            self.rect = self.rect.move(pos.x, newy)
-            #print (self.name, self.rect)
-
-        entities.append(self)
-
-    def __str__(self):
-        return "    {:5d} {:10s}: {}".format (self.ndx, self.name, self.pos)
-
-    def draw(self, screen):
-        screen.blit(self.surf, self.rect)
-
-    @property
-    def x(self):
-        return self.rect.x
-    @property
-    def y(self):
-        return self.rect.y
-
-    @property
-    def pos(self):
-        return Pos(self.rect.x, self.rect.y)
-    @pos.setter
-    def pos(self, x,y):
-        self.rect = self.rect.move(x, y)
-
-    def delta_move(self, dx, dy):
-        self.rect.x += dx
-        self.rect.y += dy
-
-
-class Pos:
-    def __init__(self, x, y):
-        self.x = x
-        self.y = y
-    def __str__(self):
-        return "({},{})".format(self.x, self.y)
-
-class Meeple:
-    def __init__(self, clr):
-        self.tgtx = 200
-        self.clr = clr
-    def create_surf(self):
-        surf = pg.Surface((10, 20))
-        surf.fill (self.clr)
-        pg.draw.rect(surf, pg.Color("yellow"), pg.Rect((0,0),(10,5)))
-        return surf
-
-class MeepleAI:
-    def __init__(self):
-        self.state = MeepleState.WAIT
-        self.vel = Pos(1,0)
-    def move(self):
-        actor = self.owner
-        #if actor.pos.x < actor.meeple.tgtx:
-        if actor.x < actor.meeple.tgtx:
-            actor.delta_move(1, 0)
-
-
-class Door:
-    def __init__(self, clr=pg.Color("black")):
-        self.clr = clr
-    def create_surf(self):
-        surf = pg.Surface((10,25))
-        surf.set_colorkey(pg.Color("magenta"), RLEACCEL)
-        pg.draw.rect(surf, self.clr, pr.Rect((0,0),(10,25)))
-        return surf
-
-class Building:
-    def __init__(self, clr, w5=8):
-        self.clr = clr
-        self.population = []
-        self.doorx = 0
-        self.width = w5*5
-    def create_surf(self):
-        surf = pg.Surface((self.width, 40))
-        surf.fill (self.clr)
-        return surf
-
-def graphics_system(screen, entities):
-    screen.fill(pg.Color("skyblue"))
-    pg.draw.rect(screen, pg.Color("gray"), pg.Rect((0, 150), (GAME_SIZE[0],100)))
-    for entity in entities:
-        entity.draw(screen)
-
 def action_system(entities):
     for entity in entities:
-        if entity.ai:
-            entity.ai.move()
+        if entity.ai != None:
+            entity.ai.update()
+
+def construct_floor(constants, entities, building, floor_comp):
+    top = building.bldgc.top_y
+    floor_h = constants['floor_h']
+    floor_w = constants['floor_w']
+    newtop = top - floor_h
+    xpos = 10
+
+    # left facade
+    entities.append (Entity ("left facade", pg.Rect((xpos, newtop), (5, floor_h)),
+        zorder=RenderOrder.BUILDING, clrs=[constants['bldg2_clrs']['a']], create_surf=True))
+    xpos += 5
+
+    # elevator shaft
+    entities.append (Entity ("shaft", pg.Rect((xpos, newtop), (30, floor_h)),
+        zorder=RenderOrder.BUILDING, clrs=[constants['bldg2_clrs']['b']], create_surf=True))
+
+    xpos += 30
+
+
+    new_floor = Entity ("floor", pg.Rect((xpos, newtop), (floor_w, floor_h)),
+        zorder=RenderOrder.FLOOR, clrs=[], 
+        create_surf=False,
+        floor_comp=floor_comp)
+    entities.append (new_floor)
+
+    xpos += floor_w #take care of the floor
+
+    # right facade
+    entities.append (Entity ("right facade", pg.Rect((xpos, newtop), (5, floor_h)),
+        zorder=RenderOrder.BUILDING, clrs=[constants['bldg2_clrs']['a']], create_surf=True))
+
+
+    building.bldgc.add_floor(new_floor)
 
 def main():
     os.environ['SDL_VIDEO_CENTERED'] = '1'
     pg.init()
-    pg.display.set_caption(CAPTION)
-    pg.display.set_mode(SCREEN_SIZE)
+    constants = get_constants()
+    pg.display.set_caption(constants['caption'])
+    pg.display.set_mode((constants['screen_width'], constants['screen_height']))
 
     pg.key.set_repeat(250, 200)
 
-    screen = pg.display.set_mode(SCREEN_SIZE)
-    game_screen = pg.Surface(GAME_SIZE)
+    background_color = pg.Color(constants['background_color'])
+
+    screen = pg.Surface ((constants['screen_width'], constants['screen_height']))
+    display_screen = pg.display.set_mode ((constants['display_width'], constants['display_height']))#(GAME_SIZE)
 
     font = pg.font.SysFont(pg.font.get_default_font(), size=20)
 
     clock = pg.time.Clock()
     running = True
     entities = []
-    #meeple 
-    Entity(entities, "meeple", Pos(100,0), ground=150,
-            meeple=Meeple(pg.Color("red")), ai=MeepleAI(),
-            bldg=None,
-            )
+    
 
-    #building
-    Entity(entities, "building", Pos(20, 110), ground=150,
-            bldg=Building(pg.Color("slategray"), 10),
-            )
-    Entity(entities, "home", Pos(200, 0), ground=150, bldg=Building(pg.Color("brown"), 20),)
+    # ground 
+    entities.append (Entity ("Ground", pg.Rect((0,300),(200,400)), 
+            zorder=RenderOrder.BACKGROUND, clrs=["forestgreen"], create_surf=True))
 
+    bldg_comp = BuildingComp(constants)
+    building = Entity("Building", 
+            rect=pg.Rect(constants['bldg_xy'], constants['bldg_wh']),
+            zorder=RenderOrder.BUILDING, clrs=constants['bldg2_clrs'],
+            create_surf=False, bldg_comp=bldg_comp)
+    entities.append(building)
+
+
+    construct_floor(constants, entities, building, FloorComp(constants, 'res'))
+
+    # add elevator after a floor has been added
+    elev_xy = (constants['elev_x'], building.bldgc.top_y)
+    elevator = Entity("Elevator", 
+            rect=pg.Rect(elev_xy, constants['elev_wh']),
+            zorder=RenderOrder.ELEVATOR, clrs=constants['bldg_clrs'],
+            create_surf=False, 
+            create_detail=True,
+            elev_comp = ElevatorComp(constants),
+            ai_comp=aiElevator(constants, building, 0),
+            )
+    entities.append(elevator)
+
+    construct_floor(constants, entities, building, FloorComp(constants, 'res'))
+    construct_floor(constants, entities, building, FloorComp(constants, 'com'))
+    construct_floor(constants, entities, building, FloorComp(constants, 'res'))
+    construct_floor(constants, entities, building, FloorComp(constants, 'com'))
+    construct_floor(constants, entities, building, FloorComp(constants, 'com'))
+
+    # add a meeple
+    ypos = building.bldgc.ypos_carpet_on_floor(2) - constants['meep_h']
+    xpos = building.bldgc.x4elevator
+
+    ameep =  Entity("Meeple",
+            rect=pg.Rect((xpos, ypos), (10,20)),
+            zorder=RenderOrder.ELEVATOR, clrs=[],
+            create_surf=False, 
+            create_detail=False,
+            meeple_comp = Meeple(constants),
+            )
+    entities.append( ameep )
+    print("xpos = ", xpos)
+    print ("meep @ ", ameep.rect.x)
+    print ("floorx ", building.bldgc.floor[1].rect.x )
 
     while running:
 
         for event in pg.event.get():
+            pressed = pg.key.get_pressed()
 
             if event.type == pg.KEYUP:
                 if event.key == pg.K_ESCAPE or event.key == pg.K_q:
                     running = False
                 elif event.key == pg.K_d: #debug
                     for entity in entities:
-                        print (entity)
+                        print (repr(entity))
+                elif event.key == pg.K_e: #debug
+                        print (repr(elevator))
+
+                elif pg.K_0 <= event.key <= pg.K_9:
+                    stop_floor = event.key - pg.K_0
+                    elevator.ai.add_stop(stop_floor)
+
 
             if event.type == QUIT:
                 running = False
@@ -202,11 +219,11 @@ def main():
         action_system(entities)
 
         # graphics system
-        graphics_system(game_screen, entities)
+        render_system(screen, entities, background_color)
 
-        pg.transform.scale2x (game_screen, screen)
+        pg.transform.scale2x (screen, display_screen)
         pg.display.update()
-        clock.tick_busy_loop(MAX_FPS)
+        clock.tick_busy_loop(constants['fps'])
 
     pg.quit()
     sys.exit()
