@@ -1,6 +1,6 @@
 """
 .py
-Simple bouncing balls using pygame
+
 
 """
 import os
@@ -10,11 +10,12 @@ import random
 import pygame as pg
 
 
-CAPTION = "Bounce 04"
+CAPTION = "Title"
 SCREEN_SIZE = (400, 400)
 MAX_FPS = 30
 
-from pygame.locals import ( K_UP, K_DOWN, K_LEFT, K_RIGHT, K_ESCAPE, KEYDOWN, QUIT,)
+from pygame.locals import ( RLEACCEL, K_UP, K_DOWN, K_LEFT, K_RIGHT, K_ESCAPE, KEYDOWN, \
+        QUIT, K_HOME, K_SPACE, K_PAGEUP, K_PAGEDOWN, )
 
 
 
@@ -34,6 +35,24 @@ def main():
             if event.type == KEYDOWN:
                 if event.key == K_ESCAPE:
                     running = False
+                elif event.key == K_SPACE:
+                    pass
+                elif event.key == K_UP:
+                    pass
+                elif event.key == K_PAGEUP:
+                    pass
+                elif event.key == K_PAGEDOWN:
+                    pass
+                elif event.key == K_DOWN:
+                    pass
+                elif event.key == K_RIGHT:
+                    pass
+                elif event.key == K_LEFT:
+                    pass
+                elif event.key == K_HOME:
+                    pass
+
+
 
             elif event.type == QUIT:
                 running = False
