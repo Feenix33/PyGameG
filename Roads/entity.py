@@ -49,6 +49,9 @@ class Entity:
         return self._surf
 
     @property
+    def w(self): return self.wh[0]
+
+    @property
     def h(self): return self.wh[1]
 
     @property

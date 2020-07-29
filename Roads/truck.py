@@ -1,11 +1,13 @@
 '''
 truck.py
+
 '''
 import pygame as pg
 #import random
 
 from pygame.locals import ( RLEACCEL, )
 from direction import Dir
+
 
 class Truck:
     def __init__(self, clr):
@@ -27,18 +29,29 @@ class Truck:
 class AITruck:
     def __init__(self, const, gmap):
         self.gmap = gmap
-        self.vel = 0
+        self.velocity = 5
+        self.velocity = 1
         self.dim = const['dim']
         self.goal = None
+        self.goal_queue = []
         #self.current = (self.owner.sx / self.dim, self.owner.sy / self.dim) 
         self.current = None
-        self.path = None
+        self.path = []
 
     def set_goal(self, goal):
-        self.goal = goal
+        self.goal_queue.append(goal)
+        #self.build_path_to_goal()
+
+    def build_path_to_goal(self):
+        if not self.goal_queue: return # no goals to set
+
+        self.goal = self.goal_queue.pop(0)
         self.current = (self.owner.sx//self.dim, self.owner.sy//self.dim)
         self.path = self.gmap.path(self.current, self.goal)
-        self.path.pop(0) # contains the current location
+        if len(self.path): # possible no path exists
+            self.path.pop(0) # contains the current location
+        else:
+            print ("ERROR: No path")
 
     def step(self):
         if len(self.path) > 0:
@@ -48,6 +61,42 @@ class AITruck:
 
 
     def move(self):
+        if len(self.path) == 0: 
+            if self.goal_queue:
+                self.build_path_to_goal()
+            return
+        for _ in range(self.velocity):
+            self.move_one_increment()
+
+    def move_one_increment(self):
+        if len(self.path) == 0: return
+
+        dbgpopped = False
+        dbgtop = False
+
+        goal = self.path[0]
+        vx, vy = 0,0
+        if self.current[0] == goal[0]: # vel is y
+            dbgtop = True
+            if self.current[1] < goal[1]: vy =  1
+            else: vy =  -1
+        else: # vel is x
+            if self.current[0] < goal[0]: vx =  1
+            else: vx =  -1
+        
+        self.owner.sx += vx
+        self.owner.sy += vy
+
+        if self.owner.sx % self.dim == 0 and self.owner.sy % self.dim == 0:
+            self.current = self.path.pop(0)
+            popped = True
+
+        ##print ("current={}, goal={} ".format(self.current, goal), end='')
+        ##print ("vel=({},{}) ".format(vx, vy), end='')
+        ##print ("top={} atGoal={} ".format(str(dbgtop), str(dbgpopped)), end='')
+        ##print ("Moved to ({},{})".format(self.owner.sx, self.owner.sy))
+
+    def move2(self):
         if self.vel > 0 and self.owner.sx < self.tgtx:
             xvel, yvel = self.owner.direction.xy()
             self.owner.sx += xvel
@@ -62,6 +111,7 @@ class AITruck:
 
     def __repr__(self):
         response = "dim={} current={} goal={}".format(self.dim, self.current, self.goal)
-        response += '\n    path='
-        response += str(self.path)
+        response += '\n        goal_queue={}-{}'.format(len(self.goal_queue), str(self.goal_queue))
+        response += '\n        path={}-{}'.format(len(self.path), str(self.path))
         return response 
+

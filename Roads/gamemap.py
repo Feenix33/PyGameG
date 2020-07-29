@@ -14,23 +14,49 @@ class PriorityQueue:
     def get(self):
         return heapq.heappop(self.elements)[1]
 
+    world_width = 50
+    world_height = 30
 
 class GameMap:
     def __init__(self, width, height):
+
         self.width = width
         self.height = height
         self.tiles = [[0 for y in range(self.height)] for x in range(self.width)]
+        self.stations = []
+        self.trucks = []
 
-    #def initialize_tiles(self):
-    #    tiles = [[Tile(True) for y in range(self.height)] for x in range(self.width)]
-    #    return tiles
+
+    def make_map_from_file(self):
+        with open("plan.txt", "r") as reader:
+            txt_map = reader.readlines()
+
+        self.width = int(txt_map[0][1:])
+        y = 0
+        for line in txt_map:
+            if line[0] != '#':
+                for x in range(self.width):
+                    if line[x] in ['r', 's', 't']:
+                        self.tiles[x][y] = 1
+                        if line[x] == 's': self.stations.append((x, y))
+                        if line[x] == 't': self.trucks.append((x, y))
+                y += 1
+        self.height = y
 
     def make_map(self):
         #self.roadrect(4, 10, 30, 10)
-        self.hroad(( 4, 10), 20)
-        self.vroad(( 4, 10), 10)
-        self.hroad(( 4, 20), 25)
-        self.vroad((14, 20),  2)
+        #self.hroad(( 4, 10), 20)
+        #self.vroad(( 4, 10), 10)
+        #self.hroad(( 4, 20), 25)
+        #self.vroad((14, 20),  2)
+        self.make_map_from_file()
+
+
+    def get_trucks_coords(self):
+        return self.trucks
+
+    def get_stations_coords(self):
+        return self.stations
 
     def hroad(self, start, length, value=1):
         x,y = start
@@ -95,13 +121,27 @@ class GameMap:
                     frontier.put (next, priority)
                     came_from[next] = current
 
+        # cme added because combining find and path creation
+        if goal not in came_from:
+            return []
+
         # Create the path
         current = goal
         path = []
         while current != start:
+            #print ("Path: {} | {}".format(str(current), str(path)))
             path.append(current)
             current = came_from[current]
         path.append(start)
         path.reverse()
         return path
 
+
+    def dump(self):
+        for y in range(self.height):
+            for x in range(self.width):
+                if self.tiles[x][y] == 0:
+                    print (" ", end="")
+                else:
+                    print (self.tiles[x][y], end="")
+            print ("|")

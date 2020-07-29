@@ -28,6 +28,7 @@ def get_constants():
         'background_color': "#c4d86f",
         'clr_background': "#c4d86f",
         'clr_truck': {'fill':"brown", 'outline':'white'},
+        'clr_station': {'fill':"orange", 'outline':'darkgreen', 'slash':'yellow', 'text':'black',},
 
     }
     return constants
