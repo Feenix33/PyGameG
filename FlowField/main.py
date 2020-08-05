@@ -3,9 +3,12 @@ FlowField.py
 Build a flow field that can interact with the mouse
 Have an emitter to generate particles that move to a goal and disappear
 TODO:
-    some random walk to the particles?
     how to better do map and world? map is a component of world?
     look at a better map dump routine similar to redgames example
+
+    No check for no path available
+    Z-order drawing not implemented
+    Magic numbers
 """
 
 import os
