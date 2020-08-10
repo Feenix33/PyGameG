@@ -14,3 +14,5 @@ clickBugs.py | Move and rotate some simple sprites
 flying.py | Horizontal flying scroller
 invade.py | Start of a space invaders game (groups, collisions, overloading, entities)
 scale_ships.py | scaled x2; sounds; multiple collisions
+FlowField | Pathfinding with a Flow Field
+Routes | Pathfinding with a distance map to add some randomness to the outcome
