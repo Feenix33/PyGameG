@@ -11,3 +11,4 @@ maze.py | Build a basic maze (incomplete)
 sidewinder.py | Maze creation with Sidewinder algorithm
 backtrack.py | Build a maze using Recursive Backtracking algorithm
 wang2c.py | Refinement of tiling using wang2c tiles
+wang3e.py | Wang 3 edge tiles, next refinement of algorithms
